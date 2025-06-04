@@ -5,5 +5,6 @@ import java.util.List;
 
 public interface ExerciseQuestionRepository extends JpaRepository<ExerciseQuestion, Long> {
     List<ExerciseQuestion> findByExerciseId(Long exerciseId);
+    
 }
 

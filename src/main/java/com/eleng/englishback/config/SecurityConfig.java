@@ -29,18 +29,21 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(cors -> {
-                }) // ✅ Bỏ qua CORS, đã cấu hình trong CorsConfig
-
-                .authorizeHttpRequests(auth -> auth
+                }).authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/lessons/**").hasRole("USER") // ✅ Thay đổi từ hasAnyRole
-                        .requestMatchers("/api/exercises/**").hasRole("USER") // ✅ Thay đổi từ hasAnyRole
+                        .requestMatchers("/api/files/**").permitAll()
+                        .requestMatchers("/audio/**").permitAll()
+                        .requestMatchers("/image/**").permitAll()
+                        .requestMatchers("/static/**").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/lessons/**").hasRole("USER")
+                        .requestMatchers("/api/exercises/**").hasRole("USER")
                         .requestMatchers("/api/users/profile").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/flashcard").hasRole("USER")
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // ✅ thay thế
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-                                                                                                       // httpBasicfilter
+        // httpBasicfilter
         return http.build();
     }
 

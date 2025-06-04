@@ -41,7 +41,7 @@ public class UserController {
 
     // ✅ Ai cũng gọi được nếu đã login
   @GetMapping("/profile")
-@PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+@PreAuthorize("hasRole('USER')")
 public ResponseEntity<UserProfileDTO> getUserProfile(Authentication authentication) {
     String username = authentication.getName();
      System.out.println("🔍 Logged-in username from token = " + username); 

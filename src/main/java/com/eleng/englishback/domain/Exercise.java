@@ -24,5 +24,6 @@ public class Exercise {
     private Lesson lesson;
 
     @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<ExerciseQuestion> questions;
 }

@@ -18,7 +18,7 @@ public class FlashcardController {
      private final FlashcardRepository flashcardRepository;
 
     @GetMapping("/random")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Flashcard> getRandomFlashcard() {
         List<Flashcard> all = flashcardRepository.findAll();
         if (all.isEmpty()) return ResponseEntity.noContent().build();
