@@ -41,29 +41,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // Trích xuất token JWT (bỏ "Bearer " ở đầu)
-        final String token = authHeader.substring(7);
-        // Lấy tên người dùng từ token
-        final String username = jwtService.extractUsername(token); // Kiểm tra nếu username hợp lệ và chưa có xác thực
-                                                                   // trong SecurityContext
+        final String token = authHeader.substring(7); // Lấy tên người dùng từ token
+        final String username = jwtService.extractUsername(token);
+        System.out.println("🔍 JWT Filter: Extracted username = " + username);
+
+        // Kiểm tra nếu username hợp lệ và chưa có xác thực trong SecurityContext
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            System.out.println("🔍 JWT Filter: Processing authentication for username = " + username);
             userRepository.findByUsername(username).ifPresent(user -> {
+                System.out.println("🔍 JWT Filter: Found user = " + user.getUsername() + ", role = " + user.getRole());
+
                 // Sử dụng phương thức isTokenValid từ JwtService
-                // Phương thức này chỉ cần token vì nó sẽ tự trích xuất tên người dùng và kiểm
-                // tra thời gian hết hạn
                 if (!jwtService.isTokenValid(token)) {
+                    System.out.println("❌ JWT Filter: Token is invalid");
                     return;
                 }
 
-                String roleName = "ROLE_" + user.getRole().name(); // Tạo tên vai trò: ROLE_USER hoặc ROLE_ADMIN
-                SimpleGrantedAuthority authority = new SimpleGrantedAuthority(roleName); // Tạo đối tượng quyền hạn
-
+                String roleName = "ROLE_" + user.getRole().name();
+                System.out.println("✅ JWT Filter: Setting role = " + roleName);
+                SimpleGrantedAuthority authority = new SimpleGrantedAuthority(roleName);
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        user.getUsername(), null, List.of(authority)); // Tạo token xác thực với tên người dùng và quyền
-                                                                       // hạn
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request)); // Thêm thông tin chi
-                                                                                                  // tiết từ request
-                SecurityContextHolder.getContext().setAuthentication(authToken); // Thiết lập thông tin xác thực vào
-                                                                                 // Security Context
+                        user.getUsername(), null, List.of(authority));
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+                System.out.println("✅ JWT Filter: Authentication set successfully for " + username);
             });
         } // Tiếp tục chuỗi lọc để xử lý các bộ lọc tiếp theo
         filterChain.doFilter(request, response);

@@ -1,117 +1,211 @@
 package com.eleng.englishback.controller;
 
+import com.eleng.englishback.domain.User;
+import com.eleng.englishback.domain.Role;
+import com.eleng.englishback.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import com.eleng.englishback.repository.UserRepository;
-import com.eleng.englishback.service.JwtService;
-
-import lombok.*;
-import com.eleng.englishback.domain.User;
-import com.eleng.englishback.domain.Role;
-import com.eleng.englishback.dto.request.LoginRequest;
-import com.eleng.englishback.dto.request.RegisterRequest;
-import com.eleng.englishback.dto.response.AuthResponse;
-
-import org.springframework.http.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class AuthController {
-    //
-    // Add your authentication methods here
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            return ResponseEntity.badRequest().body("Username already exists");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest().body("Email already exists");
+    public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> registrationData) {
+        Map<String, Object> response = new HashMap<>();
+
+        String username = registrationData.get("username");
+        String email = registrationData.get("email");
+        String password = registrationData.get("password");
+
+        // Check if user already exists
+        if (userRepository.findByUsername(username).isPresent()) {
+            response.put("success", false);
+            response.put("message", "Username already exists");
+            return ResponseEntity.badRequest().body(response);
         }
 
+        if (userRepository.findByEmail(email).isPresent()) {
+            response.put("success", false);
+            response.put("message", "Email already exists");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // Create new user
         User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
-        user.setFullName(request.getFullName());
-        user.setAvatarUrl(request.getAvatarUrl());
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordhash(passwordEncoder.encode(password));
+        user.setRole(Role.USER);
+        user.setIsPremium(false);
+        user.setIsActive(true);
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-        return ResponseEntity.ok("User registered successfully");
+        response.put("success", true);
+        response.put("message", "User registered successfully");
+        response.put("user", createUserResponse(savedUser));
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        System.out.println("Raw: " + request.getPassword());
-        System.out.println("From DB: " + user.getPasswordHash());
-        System.out.println("Match? " + passwordEncoder.matches(request.getPassword(), user.getPasswordHash()));
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> loginData) {
+        Map<String, Object> response = new HashMap<>();
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            return ResponseEntity.badRequest().body("Invalid password");
+        String username = loginData.get("username");
+        String password = loginData.get("password");
+
+        Optional<User> userOptional = userRepository.findByUsername(username);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+
+            if (!user.getIsActive()) {
+                response.put("success", false);
+                response.put("message", "Account is deactivated");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (passwordEncoder.matches(password, user.getPasswordhash())) {
+                response.put("success", true);
+                response.put("message", "Login successful");
+                response.put("user", createUserResponse(user));
+                return ResponseEntity.ok(response);
+            }
         }
-        String token = jwtService.generateToken(user);
 
-        // Tạo user object để trả về frontend (loại bỏ password)
-        User userResponse = new User();
-        userResponse.setId(user.getId());
-        userResponse.setUsername(user.getUsername());
-        userResponse.setEmail(user.getEmail());
-        userResponse.setFullName(user.getFullName());
-        userResponse.setAvatarUrl(user.getAvatarUrl());
-        userResponse.setRole(user.getRole());
-        userResponse.setActive(user.isActive());
-        userResponse.setCreatedAt(user.getCreatedAt());
-        return ResponseEntity.ok(new AuthResponse(token, user.getUsername(), user.getRole().name(), userResponse));
+        response.put("success", false);
+        response.put("message", "Invalid username or password");
+        return ResponseEntity.badRequest().body(response);
     }
 
-    // Endpoint để tạo admin user (chỉ dành cho development hoặc super admin)
-    @PostMapping("/register-admin")
-    public ResponseEntity<?> registerAdmin(@RequestBody RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            return ResponseEntity.badRequest().body("Username already exists");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest().body("Email already exists");
+    @PostMapping("/login/email")
+    public ResponseEntity<Map<String, Object>> loginWithEmail(@RequestBody Map<String, String> loginData) {
+        Map<String, Object> response = new HashMap<>();
+
+        String email = loginData.get("email");
+        String password = loginData.get("password");
+
+        Optional<User> userOptional = userRepository.findByEmail(email);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+
+            if (!user.getIsActive()) {
+                response.put("success", false);
+                response.put("message", "Account is deactivated");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (passwordEncoder.matches(password, user.getPasswordhash())) {
+                response.put("success", true);
+                response.put("message", "Login successful");
+                response.put("user", createUserResponse(user));
+                return ResponseEntity.ok(response);
+            }
         }
 
-        User admin = new User();
-        admin.setUsername(request.getUsername());
-        admin.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        admin.setEmail(request.getEmail());
-        admin.setFullName(request.getFullName());
-        admin.setAvatarUrl(request.getAvatarUrl());
-        admin.setRole(Role.ADMIN); // Đặt role là ADMIN
-
-        userRepository.save(admin);
-        return ResponseEntity.ok("Admin user created successfully");
+        response.put("success", false);
+        response.put("message", "Invalid email or password");
+        return ResponseEntity.badRequest().body(response);
     }
 
-    // Endpoint để tạo admin mặc định cho hệ thống (chỉ dùng một lần)
-    @PostMapping("/create-default-admin")
-    public ResponseEntity<?> createDefaultAdmin() {
-        // Kiểm tra xem đã có admin nào chưa
-        if (userRepository.existsByRole(Role.ADMIN)) {
-            return ResponseEntity.badRequest().body("Admin user already exists");
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, Object>> changePassword(@RequestBody Map<String, String> passwordData) {
+        Map<String, Object> response = new HashMap<>();
+
+        String username = passwordData.get("username");
+        String currentPassword = passwordData.get("currentPassword");
+        String newPassword = passwordData.get("newPassword");
+
+        Optional<User> userOptional = userRepository.findByUsername(username);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            if (passwordEncoder.matches(currentPassword, user.getPasswordhash())) {
+                user.setPasswordhash(passwordEncoder.encode(newPassword));
+                userRepository.save(user);
+
+                response.put("success", true);
+                response.put("message", "Password changed successfully");
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("success", false);
+                response.put("message", "Current password is incorrect");
+                return ResponseEntity.badRequest().body(response);
+            }
         }
 
-        User admin = new User();
-        admin.setUsername("admin");
-        admin.setPasswordHash(passwordEncoder.encode("admin123"));
-        admin.setEmail("admin@leenglish.com");
-        admin.setFullName("System Administrator");
-        admin.setRole(Role.ADMIN);
-
-        userRepository.save(admin);
-
-        return ResponseEntity.ok("Default admin created successfully. Username: admin, Password: admin123");
+        response.put("success", false);
+        response.put("message", "User not found");
+        return ResponseEntity.badRequest().body(response);
     }
 
+    @GetMapping("/verify/{username}")
+    public ResponseEntity<Map<String, Object>> verifyUser(@PathVariable String username) {
+        Map<String, Object> response = new HashMap<>();
+
+        Optional<User> userOptional = userRepository.findByUsername(username);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            response.put("success", true);
+            response.put("user", createUserResponse(user));
+            return ResponseEntity.ok(response);
+        }
+
+        response.put("success", false);
+        response.put("message", "User not found");
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @PostMapping("/upgrade-premium/{userId}")
+    public ResponseEntity<Map<String, Object>> upgradeToPremium(@PathVariable Long userId) {
+        Map<String, Object> response = new HashMap<>();
+
+        Optional<User> userOptional = userRepository.findById(userId);
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setIsPremium(true);
+            User updatedUser = userRepository.save(user);
+
+            response.put("success", true);
+            response.put("message", "User upgraded to premium successfully");
+            response.put("user", createUserResponse(updatedUser));
+            return ResponseEntity.ok(response);
+        }
+
+        response.put("success", false);
+        response.put("message", "User not found");
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    private Map<String, Object> createUserResponse(User user) {
+        Map<String, Object> userResponse = new HashMap<>();
+        userResponse.put("id", user.getId());
+        userResponse.put("username", user.getUsername());
+        userResponse.put("email", user.getEmail());
+        userResponse.put("fullName", user.getFullName());
+        userResponse.put("role", user.getRole().toString());
+        userResponse.put("isPremium", user.getIsPremium());
+        userResponse.put("isActive", user.getIsActive());
+        userResponse.put("createdAt", user.getCreatedAt());
+        userResponse.put("premiumExpiresAt", user.getPremiumExpiresAt());
+        return userResponse;
+    }
 }

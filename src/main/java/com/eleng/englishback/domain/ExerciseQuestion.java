@@ -1,53 +1,44 @@
 package com.eleng.englishback.domain;
 
-import com.fasterxml.jackson.annotation.*;
-
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Entity
-@Data
 @Table(name = "exercise_question")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ExerciseQuestion {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
+    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     private String questionText;
 
-    @Column(length = 2000)
-    private String options = "[]"; // Default to empty JSON array
+    @Column(name = "options", columnDefinition = "LONGTEXT")
+    private String options; // JSON string for multiple choice options
 
-    @NotBlank
+    @Column(name = "correct_answer", nullable = false, columnDefinition = "TEXT")
     private String correctAnswer;
-    
-    private String audioUrl; // Can be null
-    private String imageUrl; // Can be null
-    
-    @NotBlank
+
+    @Column(name = "audio_url", length = 500)
+    private String audioUrl;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
+    @Column(name = "type", nullable = false, length = 100)
     private String type;
 
-    @ManyToOne
-    @JoinColumn(name = "exercise_id", nullable = false)
-    @JsonBackReference
-    private Exercise exercise;
+    @Column(name = "exercise_id", nullable = false)
+    private Long exerciseId;
 
-    // Ensure options is never null when serialized
-    @JsonGetter("options")
-    public String getOptionsJson() {
-        return options != null ? options : "[]";
-    }
-    
-    // Add getters for nullable fields to ensure they're never undefined
-    @JsonGetter("audioUrl")
-    public String getAudioUrlSafe() {
-        return audioUrl;
-    }
-    
-    @JsonGetter("imageUrl")
-    public String getImageUrlSafe() {
-        return imageUrl;
-    }
+    // Many-to-one relationship with Exercise
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercise_id", insertable = false, updatable = false)
+    private Exercise exercise;
 }

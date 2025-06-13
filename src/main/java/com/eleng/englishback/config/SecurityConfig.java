@@ -28,22 +28,53 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                }).authorizeHttpRequests(auth -> auth
+                .cors(cors -> cors.configurationSource(request -> {
+                    var corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
+                    corsConfiguration.setAllowedOriginPatterns(java.util.List.of("*"));
+                    corsConfiguration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                    corsConfiguration.setAllowedHeaders(java.util.List.of("*"));
+                    corsConfiguration.setAllowCredentials(true);
+                    return corsConfiguration;
+                }))
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints - no authentication required
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/files/**").permitAll()
                         .requestMatchers("/audio/**").permitAll()
                         .requestMatchers("/image/**").permitAll()
-                        .requestMatchers("/static/**").permitAll()
+                        .requestMatchers("/static/**").permitAll() // Admin only endpoints - explicitly enforce ADMIN
+                                                                   // role for all admin routes
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/lessons/**").hasRole("USER")
-                        .requestMatchers("/api/exercises/**").hasRole("USER")
-                        .requestMatchers("/api/users/profile").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/flashcard").hasRole("USER")
+                        .requestMatchers("/api/admin/debug/**").hasRole("ADMIN") // Explicit protection for debug
+                                                                                 // endpoints
+
+                        // User profile and dashboard endpoints - authenticated users only
+                        .requestMatchers("/api/users/profile").authenticated()
+                        .requestMatchers("/api/users/dashboard").authenticated()
+                        .requestMatchers("/api/users/stats").authenticated()
+                        .requestMatchers("/api/users/**").authenticated()
+
+                        // Learning content endpoints - authenticated users only
+                        .requestMatchers("/api/lessons/**").authenticated()
+                        .requestMatchers("/api/exercises/**").authenticated()
+                        .requestMatchers("/api/courses/**").authenticated()
+
+                        // Interactive features - authenticated users only
+                        .requestMatchers("/api/flashcards/**").authenticated()
+                        .requestMatchers("/api/quiz/**").authenticated()
+                        .requestMatchers("/api/quizzes/**").authenticated()
+
+                        // Achievement and progress endpoints - authenticated users only
+                        .requestMatchers("/api/certificates/**").authenticated()
+                        .requestMatchers("/api/progress/**").authenticated()
+
+                        // Feedback endpoint - allow all authenticated users
+                        .requestMatchers("/api/feedback/**").authenticated()
+
+                        // Any other request needs authentication
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // httpBasicfilter
         return http.build();
     }
 
